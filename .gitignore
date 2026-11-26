@@ -5,3 +5,5 @@ __pycache__/
 eval/results/
 # 原始聊天记录含真实姓名和手机号，不要提交
 raw/
+node_modules/
+.vercel/

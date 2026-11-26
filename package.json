@@ -1,0 +1,10 @@
+{
+  "name": "liuxiao-presales-simulator",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "node scripts/build-context.mjs",
+    "dev": "node scripts/build-context.mjs && node scripts/dev.mjs"
+  }
+}

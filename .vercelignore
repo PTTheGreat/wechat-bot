@@ -1,0 +1,5 @@
+bot/
+eval/
+requirements.txt
+kb/reference/
+*.py

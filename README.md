@@ -61,7 +61,38 @@ eval/run_eval.py            跑评测
 - 逐字稿里的"答疑"部分已被拆到另一个目录 `腾讯会议答疑/`，这次**没有提供**，所以课上答疑只有编辑摘要（`kb/reference/transcript_qa_summaries.md`）。拿到后可以补进 FAQ。
 - 已匿名化：知识库里没有客户姓名、昵称、手机号、学号；讲师只保留杨妈、科校、阿丽老师等品牌名，其他人用角色代替。**原始聊天记录不要提交到这个仓库**（`.gitignore` 里留了 `raw/`）。
 
-## 本地试聊
+## 网页版对话模拟器（Vercel）
+
+`public/` 是一个仿微信的对话页：你扮演客户，AI 用刘校口吻回复。
+
+- 每轮回复下面显示**这一轮的实际成本**（OpenRouter 扣费，美元 + 约合人民币）和 token 明细；会话第一轮会标"首轮写缓存"（最贵的一轮）。
+- 右上角**成本统计**：这个 key 今日 / 本周 / 本月花费和每日限额剩余、当前会话、全部会话、按模型对比、每轮明细，可导出 CSV。会话记录只存在浏览器里。
+- 可以切换模型（Opus 5.5 / Sonnet 5.5 / Haiku 5.5）和思考强度，直接对比成本和效果。
+- 右侧"画像"：客户身份、目标、孩子、意向，以及每一轮的阶段、skill、知识库依据、是否转人工。
+- 示例问题里虚线框的是刁钻问题（测试、套话、骂人、无关问题），用来检查 `handle-edge-cases`。
+
+结构：`api/chat.js`（调 OpenRouter）、`api/stats.js`（读 key 用量）、`api/config.js`、`lib/agent.js`（共用逻辑）、`scripts/build-context.mjs`（构建时把 prompt + skills + 知识库打包进 `lib/context.generated.js`，知识库只在服务端，不会发到浏览器）。
+
+Vercel 环境变量：
+
+| 变量 | 作用 |
+|---|---|
+| `OPENROUTER_API_KEY` | 服务端用的 OpenRouter key。不设的话，页面会让每个使用者在「设置」里填自己的 key（只存在他的浏览器里） |
+| `ACCESS_CODE` | 可选。设了以后要输入访问码才能聊，防止别人用你的 key |
+
+本地预览：
+
+```bash
+OPENROUTER_API_KEY=你的key NODE_USE_ENV_PROXY=1 npm run dev
+```
+
+不花钱看界面（假数据）：
+
+```bash
+MOCK=1 OPENROUTER_API_KEY=x npm run dev
+```
+
+## 本地试聊（Python）
 
 ```bash
 pip install -r requirements.txt

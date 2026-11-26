@@ -18,7 +18,7 @@ import anthropic
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DEFAULT_MODEL = "claude-opus-5-5"
 
-STAGES = ["接住", "诊断", "给价值", "给路径", "介绍课程", "异议处理", "报价抵扣", "转人工", "收尾"]
+STAGES = ["接住", "诊断", "给价值", "给路径", "介绍课程", "异议处理", "报价抵扣", "转人工", "收尾", "边缘问题"]
 SKILLS = [
     "diagnose-needs",
     "recommend-course-path",
@@ -27,6 +27,7 @@ SKILLS = [
     "quote-price",
     "handle-objection",
     "handoff-to-human",
+    "handle-edge-cases",
     "none",
 ]
 HANDOFF_TO = ["无", "教练", "课程顾问", "小助手", "班主任", "VIP客服", "项目组", "雅思工作人员", "客服", "刘校本人"]
