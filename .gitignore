@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+eval/results/
+# 原始聊天记录含真实姓名和手机号，不要提交
+raw/
