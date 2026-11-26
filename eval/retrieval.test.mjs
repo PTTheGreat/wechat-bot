@@ -33,3 +33,22 @@ test('旧长会话只发送近期对话、上轮记忆和本轮资料', async t 
   assert.equal(res.result.memory, '关注三会，已报价。');
   assert.equal(res.usage.cost, 0.001);
 });
+
+test('第七轮：从旧客户原话恢复联系偏好，被打断时检索未答问题', async () => {
+  const {conversationFor} = await import('../public/conversation.js');
+  const items = [];
+  for (const text of ['我孩子初三，不要给我推顾问，我就在这里问。', '中高考专项有没有优惠？', '你能直接跟我说吗', '我听着呢', '行', '你再说一下']) {
+    items.push({kind:'user',text}, {kind:'turn',assistant:true,result:{replies:['嗯'],memory:'咨询中高考专项',openQuestion:'中高考专项有没有优惠？'}});
+  }
+  items.push({kind:'user',text:'你就是AI啊'});
+  const state = conversationFor(items);
+  assert.equal(state.messages.length, 6);
+  assert(state.earlier.some(q => q.includes('不要给我推顾问')));
+  const hits = retrieve(state.messages, state.memory, state.openQuestion);
+  assert(hits.some(p => p.source.startsWith('02_') && p.body.includes('| D8 |')));
+  assert(retrieve(state.messages, '中高考专项优惠待确认').some(p => p.body.includes('| D8 |')));
+  assert(!retrieve(state.messages, state.memory, '').some(p => p.body.includes('| D8 |')));
+  const question = user('那雅思多少钱？');
+  assert.match(retrieve([...state.messages, question], state.memory,state.openQuestion)[0].body, /雅思课 \| 6980 元 \| 待确认/);
+  assert.equal(conversationFor([{kind:'user',text:'在吗'}]).earlier.length, 0);
+});

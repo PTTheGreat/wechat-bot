@@ -1,3 +1,4 @@
+import { conversationFor } from "./conversation.js";
 // 刘校售前模拟：对话、每轮成本、成本统计。会话和成本记录只存在本浏览器（localStorage）。
 const $ = (s) => document.querySelector(s);
 const LS = "liuxiao-sim-v1";
@@ -65,24 +66,6 @@ function newSession() {
 }
 
 // items: {kind:"user", text, ts} | {kind:"turn", ts, result, usage, latencyMs, model, provider, assistant|null} | {kind:"error", text, ts}
-function historyFor(session) {
-  const out = [];
-  for (const it of session.items.slice().reverse()) {
-    if (it.kind === "user") out.push({ role: "user", content: it.text });
-    else if (it.kind === "turn" && it.assistant) out.push({ role: "assistant", content: it.result.replies.join("\n") });
-    if (out.length === 6) break;
-  }
-  return out.reverse();
-}
-
-function memoryFor(session) {
-  // 摘要随已完成的轮次持久化。旧会话用最近一次保存的客户画像接续。
-  const turn = session.items.findLast(it => it.kind === "turn" && it.assistant);
-  if (turn?.result.memory) return turn.result.memory;
-  if (!turn?.result.customer) return "";
-  return JSON.stringify({ customer: turn.result.customer, stage: turn.result.stage, handoff: turn.result.handoff });
-}
-
 function headers() {
   const h = { "Content-Type": "application/json" };
   if (!state.config?.hasServerKey && state.settings.key) h["X-OpenRouter-Key"] = state.settings.key;
@@ -121,7 +104,7 @@ async function respond(sessionId) {
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: headers(),
-      body: JSON.stringify({ messages: historyFor(s), memory: memoryFor(s), model: s.model, effort: s.effort }),
+      body: JSON.stringify({ ...conversationFor(s.items), model: s.model, effort: s.effort }),
     });
     const data = await res.json().catch(() => ({ error: `服务器返回 ${res.status}` }));
     if (!res.ok) throw new Error(data.error || `请求失败 ${res.status}`);
@@ -138,6 +121,7 @@ async function respond(sessionId) {
     if (/key|访问码/.test(err.message)) openSettings();
   } finally {
     state.inflight = false;
+    renderTyping(false);
     // 等待期间又来了新消息：接着回。
     clearTimeout(state.timer);
     const nextId = state.queued.values().next().value;
