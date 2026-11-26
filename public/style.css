@@ -99,7 +99,7 @@ button, select, input, textarea { font: inherit; color: inherit; }
 }
 .turn-meta:hover, .turn-meta.active { color: var(--text); }
 .turn-meta .cost { color: var(--text); font-weight: 600; }
-.turn-meta.cold .cost::after { content: " 首轮写缓存"; font-weight: 400; color: var(--warn-ink); background: var(--warn-bg); border-radius: 3px; padding: 0 4px; margin-left: 4px; font-size: 11px; }
+.turn-meta.cold .cost::after { content: " 缓存写入"; font-weight: 400; color: var(--warn-ink); background: var(--warn-bg); border-radius: 3px; padding: 0 4px; margin-left: 4px; font-size: 11px; }
 
 .pill { align-self: center; font-size: 12px; padding: 3px 10px; border-radius: 10px; background: var(--warn-bg); color: var(--warn-ink); max-width: 90%; text-align: center; }
 .pill.err { background: #fde7e7; color: var(--danger); }

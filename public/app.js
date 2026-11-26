@@ -94,8 +94,7 @@ function send(text) {
 }
 
 function pendingUser(s) {
-  const last = s.items.filter((i) => i.kind !== "error").at(-1);
-  return last && last.kind === "user";
+  return s.items.at(-1)?.kind === "user";
 }
 
 async function respond(sessionId) {
@@ -313,12 +312,13 @@ function renderPanel() {
 
   const m = state.config?.models.find((x) => x.id === $("#model").value);
   if (m) {
-    const kTok = Math.round((state.config.contextChars || 0) * 1);
+    const contextChars = state.config.contextChars;
     $("#pricing").innerHTML = "";
     const p = document.createElement("div");
     p.textContent =
       `${m.label} 单价（美元/百万 token）：输入 ${m.price.in}，缓存写 ${m.price.cacheWrite}，缓存读 ${m.price.cacheRead}，输出 ${m.price.out}。` +
-      `知识库约 ${int(kTok)} 字，每轮都要带上：会话第一轮（或停了 5 分钟以上）要写缓存，最贵；之后几分钟内的每轮只按缓存读计费。` +
+      (contextChars ? `每轮附带 ${int(contextChars)} 字符的固定资料和本次对话历史。` : "") +
+      `缓存命中量和思考 token 可在回复下方查看。` +
       `成本数字是 OpenRouter 实际扣费。`;
     $("#pricing").append(p);
   }
@@ -555,7 +555,7 @@ async function init() {
   try {
     state.config = await (await fetch("/api/config")).json();
   } catch {
-    state.config = { models: [{ id: "anthropic/claude-opus-5.5", label: "Claude Opus 5.5", price: { in: 4, out: 20, cacheRead: 0.2, cacheWrite: 5 } }], defaultModel: "anthropic/claude-opus-5.5", hasServerKey: false };
+    state.config = { models: [{ id: "openai/gpt-6-luna", label: "GPT-6 Luna", price: { in: 0.1, out: 0.5, cacheRead: 0.01, cacheWrite: 0.125 } }], defaultModel: "openai/gpt-6-luna", hasServerKey: false };
   }
   const sel = $("#model");
   state.config.models.forEach((m) => {
@@ -564,7 +564,7 @@ async function init() {
     sel.append(o);
   });
   const s = current();
-  sel.value = s?.model || state.config.defaultModel;
+  sel.value = state.config.defaultModel;
   if (s?.effort) $("#effort").value = s.effort;
   if (!s) newSession();
 
