@@ -1,29 +1,46 @@
-// 把 agent/system_prompt.md + skills/*/SKILL.md + kb/*.md 拼成一个字符串，写进 lib/context.generated.js。
-// 拼法和 bot/agent.py 的 load_context() 完全一致（顺序固定，提示缓存才能命中）。
-import { readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+// 以 Markdown 段落、问答和表格行建立服务端语料。表格行保留列名和状态。
+import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const read = (p) => readFileSync(join(root, p), "utf8");
+const root = new URL('../', import.meta.url);
+const read = (path) => readFileSync(new URL(path, root), 'utf8');
+const passages = [];
 
-const parts = [read("agent/system_prompt.md")];
-
-parts.push("# Skills（每个场景的做法）");
-for (const name of readdirSync(join(root, "skills")).sort()) {
-  const p = join("skills", name, "SKILL.md");
-  if (existsSync(join(root, p))) parts.push(`<skill name="${name}">\n${read(p)}\n</skill>`);
+function indexFile(source, text) {
+  const headings = [];
+  let block = [], tableHeader = '';
+  function add(body) {
+    if (body.trim()) passages.push({ source, title: headings.filter(Boolean).join(' / '), body: body.trim() });
+  }
+  function flush() { add(block.join('\n')); block = []; }
+  for (const line of text.replace(/^---\n[\s\S]*?\n---\n/, '').split('\n')) {
+    const heading = line.match(/^(#{1,6})\s+(.+)/);
+    if (heading) {
+      flush(); headings.length = heading[1].length; headings[headings.length - 1] = heading[2];
+      tableHeader = '';
+    } else if (line.startsWith('|')) {
+      flush();
+      if (!tableHeader) tableHeader = line;
+      else if (!/^\|[\s:|-]+$/.test(line)) add(tableHeader + '\n' + line);
+    } else if (!line.trim() || line.trim() === '---') {
+      flush(); tableHeader = '';
+    } else {
+      if (/^\*\*[A-Z]\d+\b/.test(line) || (block.join('\n').length > 450 && /^\s*[-\d]/.test(line))) flush();
+      block.push(line);
+    }
+  }
+  flush();
 }
 
-parts.push("# 知识库");
-for (const name of readdirSync(join(root, "kb")).sort()) {
-  if (!name.endsWith(".md") || name === "README.md") continue;
-  parts.push(`<kb file="${name}">\n${read(join("kb", name))}\n</kb>`);
+for (const name of readdirSync(new URL('kb/', root)).sort()) {
+  if (/^\d+_.*\.md$/.test(name)) indexFile(name, read('kb/' + name));
 }
-
-const text = parts.join("\n\n");
-writeFileSync(
-  join(root, "lib", "context.generated.js"),
-  `// 自动生成，请勿手改：npm run build\nexport const CONTEXT_CHARS = ${text.length};\nexport default ${JSON.stringify(text)};\n`,
-);
-console.log(`context: ${text.length} chars`);
+for (const dir of readdirSync(new URL('skills/', root), { withFileTypes: true })) {
+  if (dir.isDirectory()) indexFile(dir.name + '/SKILL.md', read('skills/' + dir.name + '/SKILL.md'));
+}
+const base = read('agent/system_prompt.md').trim();
+const generated = '// 自动生成，请勿手改：npm run build\n' +
+  `export const basePrompt = ${JSON.stringify(base)};\n` +
+  `export const passages = ${JSON.stringify(passages, null, 2)};\n`;
+writeFileSync(fileURLToPath(new URL('lib/context.generated.js', root)), generated);
+console.log(`基础指令 ${base.length} 字符，已索引 ${passages.length} 个段落`);

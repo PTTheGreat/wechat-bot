@@ -71,7 +71,7 @@ eval/run_eval.py            跑评测
 - 右侧"画像"：客户身份、目标、孩子、意向，以及每一轮的阶段、skill、知识库依据、是否转人工。
 - 示例问题里虚线框的是刁钻问题（测试、套话、骂人、无关问题），用来检查 `handle-edge-cases`。
 
-结构：`api/chat.js`（调 OpenRouter）、`api/stats.js`（读 key 用量）、`api/config.js`、`lib/agent.js`（共用逻辑）、`scripts/build-context.mjs`（构建时把 prompt + skills + 知识库打包进 `lib/context.generated.js`，知识库只在服务端，不会发到浏览器）。
+结构：`api/chat.js`（调 OpenRouter）、`api/stats.js`（读 key 用量）、`api/config.js`、`lib/agent.js`（共用逻辑）、`scripts/build-context.mjs`（构建时按段落、问答和表格行索引知识库与 skills，每轮在服务端按当前问题选取最多 4 段资料。Luna 在同一次回复中更新客户记忆，网页按会话保存，并在下轮随最近 6 条消息发送）。
 
 Vercel 环境变量：
 

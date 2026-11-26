@@ -40,6 +40,7 @@ const state = {
   currentId: saved.currentId || null,
   inflight: false,
   timer: null,
+  queued: new Set(),
   selected: null,
 };
 
@@ -66,11 +67,20 @@ function newSession() {
 // items: {kind:"user", text, ts} | {kind:"turn", ts, result, usage, latencyMs, model, provider, assistant|null} | {kind:"error", text, ts}
 function historyFor(session) {
   const out = [];
-  for (const it of session.items) {
+  for (const it of session.items.slice().reverse()) {
     if (it.kind === "user") out.push({ role: "user", content: it.text });
-    else if (it.kind === "turn" && it.assistant) out.push(it.assistant);
+    else if (it.kind === "turn" && it.assistant) out.push({ role: "assistant", content: it.result.replies.join("\n") });
+    if (out.length === 6) break;
   }
-  return out;
+  return out.reverse();
+}
+
+function memoryFor(session) {
+  // 摘要随已完成的轮次持久化。旧会话用最近一次保存的客户画像接续。
+  const turn = session.items.findLast(it => it.kind === "turn" && it.assistant);
+  if (turn?.result.memory) return turn.result.memory;
+  if (!turn?.result.customer) return "";
+  return JSON.stringify({ customer: turn.result.customer, stage: turn.result.stage, handoff: turn.result.handoff });
 }
 
 function headers() {
@@ -90,6 +100,7 @@ function send(text) {
   render();
   // 像微信一样：对方连发几条，停 1.2 秒再一起回。
   clearTimeout(state.timer);
+  state.queued.add(s.id);
   state.timer = setTimeout(() => respond(s.id), 1200);
 }
 
@@ -101,25 +112,26 @@ async function respond(sessionId) {
   const s = state.sessions.find((x) => x.id === sessionId);
   if (!s || state.inflight || !pendingUser(s)) return;
   state.inflight = true;
+  state.queued.delete(s.id);
   s.model = $("#model").value;
   s.effort = $("#effort").value;
+  const answerAt = s.items.length;
   renderTyping(true);
   try {
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: headers(),
-      body: JSON.stringify({ messages: historyFor(s), model: s.model, effort: s.effort }),
+      body: JSON.stringify({ messages: historyFor(s), memory: memoryFor(s), model: s.model, effort: s.effort }),
     });
     const data = await res.json().catch(() => ({ error: `服务器返回 ${res.status}` }));
     if (!res.ok) throw new Error(data.error || `请求失败 ${res.status}`);
     const turn = { kind: "turn", ts: Date.now(), ...data };
-    s.items.push(turn);
+    s.items.splice(answerAt, 0, turn);
     persist();
-    state.inflight = false;
     renderTyping(false);
     await revealTurn(s, turn);
   } catch (err) {
-    s.items.push({ kind: "error", text: err.message, ts: Date.now() });
+    s.items.splice(answerAt, 0, { kind: "error", text: err.message, ts: Date.now() });
     persist();
     renderTyping(false);
     render();
@@ -127,7 +139,9 @@ async function respond(sessionId) {
   } finally {
     state.inflight = false;
     // 等待期间又来了新消息：接着回。
-    if (pendingUser(s)) state.timer = setTimeout(() => respond(s.id), 400);
+    clearTimeout(state.timer);
+    const nextId = state.queued.values().next().value;
+    if (nextId) state.timer = setTimeout(() => respond(nextId), 400);
   }
 }
 
@@ -295,7 +309,9 @@ function renderPanel() {
     dl.className = "kv";
     [
       ["阶段", r.stage], ["skill", r.skill],
+      ...(r.memory ? [["会话记忆", r.memory]] : []),
       ["转人工", r.handoff?.needed ? `${r.handoff.to}：${r.handoff.reason}` : "否"],
+      ...(sel.retrieval ? [["本轮检索", `${sel.retrieval.count} 段 · ${int(sel.retrieval.chars)} 字符`]] : []),
       ["依据", (r.kb_refs || []).join("、") || "—"],
       ["成本", `${usd(u.cost)} ${cny(u.cost)}`],
       ["输入", `${int(u.promptTokens)}（缓存读 ${int(u.cachedTokens)}，缓存写 ${int(u.cacheWriteTokens)}）`],
@@ -317,7 +333,7 @@ function renderPanel() {
     const p = document.createElement("div");
     p.textContent =
       `${m.label} 单价（美元/百万 token）：输入 ${m.price.in}，缓存写 ${m.price.cacheWrite}，缓存读 ${m.price.cacheRead}，输出 ${m.price.out}。` +
-      (contextChars ? `每轮附带 ${int(contextChars)} 字符的固定资料和本次对话历史。` : "") +
+      (contextChars ? `固定指令 ${int(contextChars)} 字符，每轮另附客户记忆、近期对话和命中的资料。` : "") +
       `缓存命中量和思考 token 可在回复下方查看。` +
       `成本数字是 OpenRouter 实际扣费。`;
     $("#pricing").append(p);
