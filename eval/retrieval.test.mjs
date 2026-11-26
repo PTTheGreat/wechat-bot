@@ -52,3 +52,18 @@ test('第七轮：从旧客户原话恢复联系偏好，被打断时检索未�
   assert.match(retrieve([...state.messages, question], state.memory,state.openQuestion)[0].body, /雅思课 \| 6980 元 \| 待确认/);
   assert.equal(conversationFor([{kind:'user',text:'在吗'}]).earlier.length, 0);
 });
+
+test('调侃和核实有区别；找回旧客户原话时附带后来那句更正', async () => {
+  const {isToneFeedback} = await import('../lib/retrieval.js');
+  const {conversationFor} = await import('../public/conversation.js');
+  assert(isToneFeedback('你就是AI啊'));
+  assert(!isToneFeedback('我认真问，你是本人在打字吗？'));
+  const items = [];
+  for (const text of ['我家孩子初二，先不加顾问。','英语满分120，考了50。','刚才打错了，初三了，不是初二。','嗯','行','接着说','好的']) {
+    items.push({kind:'user',text},{kind:'turn',assistant:true,result:{replies:['好'],memory:'孩子初三，50/120。',openQuestion:''}});
+  }
+  items.push({kind:'user',text:'还记得我家孩子几年级，上次考几分吗？'});
+  const state = conversationFor(items);
+  assert(state.earlier.some(q => q.includes('打错了，初三')));
+  assert.deepEqual(retrieve(state.messages, state.memory, state.openQuestion), []);
+});

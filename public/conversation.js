@@ -26,6 +26,11 @@ export function conversationFor(items) {
   // 保留最近表达的联系偏好，连同时间顺序一起发；客户可以在后续改主意。
   const contact = older.findLastIndex(it => /顾问|转人工|找真人|找刘校本人|别.*联系|不想.*联系/.test(it.text));
   if (contact >= 0 && !matches.some(it => it.index === contact)) matches.push({index:contact, text:older[contact].text});
+  // 原话可能已被纠正。如果引用了旧说法，把后来的更正一同交给模型。
+  const selectedWords = keywords(matches.map(it => it.text).join(' '));
+  const correction = older.findLastIndex(it => /打错|记错|更正|说错|写错|纠正|改成|不是.{1,12}[，,].{0,3}是/.test(it.text)
+    && [...keywords(it.text)].some(w => selectedWords.has(w) || query.has(w)));
+  if (correction >= 0 && !matches.some(it => it.index === correction)) matches.push({index:correction, text:older[correction].text});
   const earlier = matches.sort((a,b) => a.index - b.index).map(it => it.text.slice(0, 180));
   return { messages, memory, openQuestion, earlier };
 }
